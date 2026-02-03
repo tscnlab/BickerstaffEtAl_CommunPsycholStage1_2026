@@ -400,8 +400,7 @@ library(here)</code></pre>
 <pre class="r"><code>library(gghalves)
 library(patchwork)</code></pre>
 <pre><code>## Warning: package &#39;patchwork&#39; was built under R version 4.4.1</code></pre>
-<pre class="r"><code># source(here(&quot;R&quot;, &quot;emg_settings.R&quot;))
-source(here(&quot;R&quot;, &quot;plot_settings.R&quot;))</code></pre>
+<pre class="r"><code>source(here(&quot;R&quot;, &quot;plot_settings.R&quot;))</code></pre>
 <pre class="r"><code>emg_data &lt;- read_csv(here(&quot;data&quot;, &quot;emg_pilot_data.csv&quot;))</code></pre>
 <pre><code>## Rows: 408 Columns: 7
 ## ── Column specification ────────────────────────────────────────────────────────
@@ -571,7 +570,7 @@ for (chan in unique(emg_data$channel)) {
 }</code></pre>
 <pre class="r"><code># Merge EMG orbicularis oculi baseline + main plots
 
-plot_emg_main &lt;- readRDS(here(&quot;outputs&quot;, &quot;figures&quot;, &quot;rds&quot;, glue(&quot;emg_raincloud_chan_2.rds&quot;))) +
+plot_emg_main &lt;- readRDS(here(&quot;outputs&quot;, &quot;figures&quot;, &quot;rds&quot;, &quot;emg_raincloud_chan_2.rds&quot;)) +
   coord_cartesian(
     ylim = c(95, 2000), 
     xlim = c(300, 10000),
@@ -588,7 +587,7 @@ plot_emg_main &lt;- readRDS(here(&quot;outputs&quot;, &quot;figures&quot;, &quot
   ) </code></pre>
 <pre><code>## Coordinate system already present.
 ## ℹ Adding new coordinate system, which will replace the existing one.</code></pre>
-<pre class="r"><code>plot_emg_baseline &lt;- readRDS(here(&quot;outputs&quot;, &quot;figures&quot;, &quot;rds&quot;, glue(&quot;emg_baseline_chan_2.rds&quot;))) +
+<pre class="r"><code>plot_emg_baseline &lt;- readRDS(here(&quot;outputs&quot;, &quot;figures&quot;, &quot;rds&quot;, &quot;emg_baseline_chan_2.rds&quot;)) +
   coord_cartesian(
     xlim = c(-0.6, 0.6),
     ylim = c(95, 2000),
@@ -643,7 +642,7 @@ print(combined)</code></pre>
 <pre class="r"><code># Save the plot
 formatted_save(here(&quot;outputs&quot;, &quot;figures&quot;, &quot;emg_dose_resp_oo.jpg&quot;), combined, width = 4, height = 4)</code></pre>
 <pre><code>## `geom_smooth()` using formula = &#39;y ~ x&#39;</code></pre>
-<pre class="r"><code>saveRDS(combined, here(&quot;outputs&quot;, &quot;figures&quot;, &quot;rds&quot;, glue(&quot;emg_dose_resp_oo.rds&quot;)))</code></pre>
+<pre class="r"><code>saveRDS(combined, here(&quot;outputs&quot;, &quot;figures&quot;, &quot;rds&quot;, &quot;emg_dose_resp_oo.rds&quot;))</code></pre>
 <pre class="r"><code>sessionInfo()</code></pre>
 <pre><code>## R version 4.4.0 (2024-04-24)
 ## Platform: aarch64-apple-darwin20
