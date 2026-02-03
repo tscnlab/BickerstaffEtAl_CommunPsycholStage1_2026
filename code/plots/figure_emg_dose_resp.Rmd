@@ -18,7 +18,6 @@ library(glue)
 library(gghalves)
 library(patchwork)
 
-# source(here("R", "emg_settings.R"))
 source(here("R", "plot_settings.R"))
 ```
 
