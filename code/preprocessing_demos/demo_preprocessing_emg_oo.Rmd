@@ -1,0 +1,77 @@
+---
+title: 'Demo: EMG preprocessing (orbicularis oculi)'
+author: "Lucien Bickerstaff"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, warning=F, message=F}
+library(here)
+library(patchwork)
+
+id <- "309"
+muscle <- "ooc" # orbicularis oculi
+
+emg_data <- readRDS(here("data", "preprocessing_demos", "demo_pilot_emg_data.rds"))
+
+source(here("R", "helpers.R"))
+source(here("R", "emg_preprocessing.R"))
+```
+
+```{r preprocessing}
+# run preprocessing
+emg_data_pp <- preprocess_emg(
+  data = emg_data,
+  pid = id,
+  muscle = muscle
+)
+```
+
+Now we can visualise what the data looks like aftr each preprocessing step
+
+```{r plotting}
+plot_raw <- plot_emg(
+  emg_data_pp,
+  which = "raw"
+)
+plot_centered <- plot_emg(
+  emg_data_pp,
+  which = "zero_centered"
+)
+plot_rectified <- plot_emg(
+  emg_data_pp,
+  which = "rectified"
+)
+plot_smoothed <- plot_emg(
+  emg_data_pp,
+  which = "smoothed"
+)
+plot_bc <- plot_emg(
+  emg_data_pp,
+  which = "baseline_corrected"
+)
+
+# Combine plots into big figure
+full_plot <- wrap_plots(list(
+      plot_raw,
+      plot_centered,
+      plot_rectified,
+      plot_smoothed,
+      plot_bc
+    ), ncol = 1) +
+      plot_layout(guides = "collect") +
+      plot_annotation(title = glue("EMG data preprocessing, {muscles[emg_data_pp$channel]}, participant {id}")) &
+      theme(
+        plot.title = ggtext::element_markdown(size = 9, family = "Arial"),
+        legend.position = "right"
+      )
+full_plot
+
+# save plots
+formatted_save(here("outputs", "figures", "preprocessing_emg.jpg"), full_plot, width = 7, height = 9)
+save_rds_safe(full_plot, here("outputs", "figures", "rds", "preprocessing_emg.rds"))
+```
+
+```{r}
+sessionInfo()
+```

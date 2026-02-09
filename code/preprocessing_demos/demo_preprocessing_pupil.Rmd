@@ -1,0 +1,83 @@
+---
+title: "Demo: Pupillary data preprocessing"
+author: "Lucien Bickerstaff"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, warning=F, message=F}
+library(here)
+library(patchwork)
+
+id <- "317"
+eye <- 1
+
+pupil_data <- readRDS(here("data", "preprocessing_demos", "demo_pilot_pupil_data.rds"))
+
+source(here("R", "helpers.R"))
+source(here("R", "pupil_preprocessing.R"))
+```
+
+
+```{r preprocessing}
+# run preprocessing
+pupil_data_pp <- preprocess_pupil(
+  data = pupil_data,
+  eye_id = eye,
+  pid = id
+)
+```
+
+Now we can visualise what the data looks like aftr each preprocessing step
+
+```{r plotting}
+plot_raw <- plot_pupil(
+  pupil_data_pp,
+  which = "raw"
+)
+plot_masked_1 <- plot_pupil(
+  pupil_data_pp,
+  which = "masked_1"
+)
+plot_masked_2 <- plot_pupil(
+  pupil_data_pp,
+  which = "masked_2"
+)
+plot_resampled <- plot_pupil(
+  pupil_data_pp,
+  which = "resampled"
+)
+plot_smoothed <- plot_pupil(
+  pupil_data_pp,
+  which = "smoothed"
+)
+plot_bc <- plot_pupil(
+  pupil_data_pp,
+  which = "baseline_corrected"
+)
+
+# Combine plots into big figure
+full_plot <- wrap_plots(list(
+      plot_raw,
+      plot_masked_1,
+      plot_masked_2,
+      plot_resampled,
+      plot_smoothed,
+      plot_bc
+    ), ncol = 1) +
+      plot_layout(guides = "collect") +
+      plot_annotation(title = glue("Pupil data preprocessing, participant {id}, eye {eye}")) &
+      theme(
+        plot.title = ggtext::element_markdown(size = 9, family = "Arial"),
+        legend.position = "right"
+      )
+full_plot
+
+# save plots
+formatted_save(here("outputs", "figures", "preprocessing_demo_pupil.jpg"), full_plot, width = 7, height = 9)
+save_rds_safe(full_plot, here("outputs", "figures", "rds", "preprocessing_demo_pupil.rds"))
+```
+
+```{r}
+sessionInfo()
+```
