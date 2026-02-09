@@ -9,7 +9,7 @@ Code to run BFDA from pilot data
 
 # Setup
 
-```{r}
+```{r setup, warning=F, message=F}
 # Seed for reproducibility
 set.seed(2025)
 
@@ -27,6 +27,7 @@ library(patchwork)
 library(ggtext)
 
 # Paths
+source(here("R", "helpers.R"))
 source(here("R", "plot_settings.R"))
 
 # BFDA parameter grid
@@ -456,17 +457,16 @@ plot2
 plot3
 
 # Saving plots
-formatted_save(here("outputs", "figures", "power_plot_a_sample_size.jpg"), plot1 + labs(title = "Dependence of power on sample size"))
-saveRDS(plot1, here("outputs", "figures", "rds", glue("power_plot_a_sample_size.rds")))
-
-formatted_save(here("outputs", "figures", "power_plot_b_noise_scaling.jpg"), plot2 + labs(title = "Dependence of power on noise scaling"))
-saveRDS(plot2, here("outputs", "figures", "rds", glue("power_plot_b_noise_scaling.rds")))
+save_rds_safe(plot1, here("outputs", "figures", "rds", glue("power_plot_a_sample_size.rds")))
+save_rds_safe(plot2, here("outputs", "figures", "rds", glue("power_plot_b_noise_scaling.rds")))
 
 formatted_save(here("outputs", "figures", "power_plot_ab_combined.jpg"), joined, width = 7, height = 6)
+save_rds_safe(joined, here("outputs", "figures", "rds", glue("power_plot_ab_combined.rds")))
 
-formatted_save(here("outputs", "figures", "power_plot_c_heatmap.jpg"), plot3, width = 7, height = 7)
-saveRDS(plot3, here("outputs", "figures", "rds", glue("power_plot_c_heatmap.rds")))
+save_rds_safe(plot3, here("outputs", "figures", "rds", glue("power_plot_c_heatmap.rds")))
 ```
+
+# Contour plot
 
 ```{r}
 plot3_lines <- ggplot(tpr_df, aes(noise_scaling, n_subjects, z = tpr)) +
@@ -560,8 +560,10 @@ plot3_contour <- ggplot(
 plot3_contour
 
 formatted_save(here("outputs", "figures", "power_plot_c_contour.jpg"), plot3_contour)
-saveRDS(plot3_contour, here("outputs", "figures", "rds", glue("power_plot_c_contour.rds")))
+save_rds_safe(plot3_contour, here("outputs", "figures", "rds", glue("power_plot_c_contour.rds")))
 ```
+
+Extra plot…
 
 ```{r}
 iso_breaks <- seq(0, 1, by = 0.1)
@@ -608,8 +610,7 @@ plot3_iso_grad <- ggplot(
 
 plot3_iso_grad
 
-formatted_save(here("outputs", "figures", "power_plot_c_contour_bis.jpg"), plot3_iso_grad)
-saveRDS(plot3_iso_grad, here("outputs", "figures", "rds", glue("power_plot_c_contour_bis.rds")))
+save_rds_safe(plot3_iso_grad, here("outputs", "figures", "rds", glue("power_plot_c_contour_bis.rds")))
 ```
 
 ```{r}
