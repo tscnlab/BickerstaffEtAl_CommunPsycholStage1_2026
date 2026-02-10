@@ -5,6 +5,11 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
+```{r render-time-1, include=FALSE}
+# Record how long it took to render the file
+.render_start <- Sys.time()
+```
+
 ```{r setup, warning=F, message=F}
 library(here)
 library(patchwork)
@@ -80,4 +85,9 @@ save_rds_safe(full_plot, here("outputs", "figures", "rds", "preprocessing_demo_p
 
 ```{r}
 sessionInfo()
+```
+
+```{r render-time-2, echo=FALSE}
+render_time <- Sys.time() - .render_start
+cat("Render time:", format(render_time))
 ```

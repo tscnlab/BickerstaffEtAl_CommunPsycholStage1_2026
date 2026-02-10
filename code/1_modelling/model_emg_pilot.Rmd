@@ -5,7 +5,10 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
-# Setup
+```{r render-time-1, include=FALSE}
+# Record how long it took to render the file
+.render_start <- Sys.time()
+```
 
 ```{r setup, warning=F, message=F}
 # Seed for reproducibility
@@ -165,4 +168,9 @@ r2
 
 ```{r}
 sessionInfo()
+```
+
+```{r render-time-2, echo=FALSE}
+render_time <- Sys.time() - .render_start
+cat("Render time:", format(render_time))
 ```

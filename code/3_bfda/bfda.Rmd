@@ -1,13 +1,14 @@
 ---
-title: "BFDA"
+title: "BFDA from pilot data model fit"
 author: "Lucien Bickerstaff"
 date: "`r Sys.Date()`"
 output: html_document
 ---
 
-Code to run BFDA from pilot data
-
-# Setup
+```{r render-time-1, include=FALSE}
+# Record how long it took to render the file
+.render_start <- Sys.time()
+```
 
 ```{r setup, warning=F, message=F}
 # Seed for reproducibility
@@ -615,4 +616,9 @@ save_rds_safe(plot3_iso_grad, here("outputs", "figures", "rds", glue("power_plot
 
 ```{r}
 sessionInfo()
+```
+
+```{r render-time-2, echo=FALSE}
+render_time <- Sys.time() - .render_start
+cat("Render time:", format(render_time))
 ```
