@@ -71,7 +71,7 @@ renv::restore()
 
 ### 4. Run the `.Rmd` scripts
 
-Running the code will recreate:
+Running the code will recreate all `.html` files, and:
 
 - The OO-EMG LMM fit object and model output
 - The design matrix
