@@ -73,7 +73,7 @@ full_plot <- wrap_plots(list(
 full_plot
 
 # save plots
-formatted_save(here("outputs", "figures", "preprocessing_emg.jpg"), full_plot, width = 7, height = 9)
+formatted_save(here("outputs", "figures", "preprocessing_emg.jpg"), full_plot, width = 7, height = 8)
 save_rds_safe(full_plot, here("outputs", "figures", "rds", "preprocessing_emg.rds"))
 ```
 
