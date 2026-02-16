@@ -30,7 +30,7 @@ muscles <- c("corrugator supercilii",
              "zygomaticus major",
              "orbicularis oris")
 
-breaks <- c(0.1, 0.3, 1, 3, 10, 30, 100, 300, 1000, 3000, 10000)
+breaks <- c(0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100, 300, 1000, 3000, 10000)
 minor_breaks <- rep(1:9, 21)*(10^rep(-10:10, each=9))
 
 plot_formatting <- theme(
