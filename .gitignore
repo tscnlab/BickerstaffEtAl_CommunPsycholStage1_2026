@@ -9,3 +9,4 @@
 # These files are too big to be committed…
 outputs/figures/rds/preprocessing_emg.rds
 outputs/figures/rds/preprocessing_demo_pupil.rds
+data/main_data/emg_outcomes_trial_all.rds

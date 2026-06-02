@@ -63,8 +63,7 @@ emg_trial_data <- emg_data %>%
   dplyr::filter(channel == 2) %>%
   dplyr::select(
     -melanopic_edi,
-    -illuminance,
-    -emg_trace
+    -illuminance
   ) %>%
   dplyr::mutate(
     dplyr::across(
