@@ -12,7 +12,8 @@ output: html_document
 
 ```{r setup, warning=F, message=F}
 # Seed for reproducibility
-set.seed(2025)
+seed <- 2025
+set.seed(seed)
 
 # Libraries
 library(here)
@@ -31,7 +32,7 @@ source(here("R", "plot_settings.R"))
 
 ```{r}
 # Import spectral data
-spec_data <- read.xlsx(here("data", "light_source_calibration", "2b_target_settings_corrected.xlsx"))
+spec_data <- read.xlsx(here("data", "light_source_calibration", "1_raw", "2b_target_settings_corrected_raw.xlsx"))
 # Transpose the data
 spec_data <- as.data.frame(t(spec_data), stringsAsFactors = FALSE)
 # Assign the first row as header
@@ -159,90 +160,323 @@ plot_spectra
 
 # Hypothesis plots
 
-Need to simulate data. We run the simulation once again (same as for BFDA)
+Need to simulate data. We run the simulation once again (same as for sensitivity analysis)
 
 ```{r}
-m <- readRDS(here("outputs", "emg_lmm.rds"))
+m_mel <- readRDS(here("outputs", "models", "emg_lmm_mel.rds"))
 
-design_matrix <- read_csv2(here("outputs", "design_matrix.csv"))
+model_frame <- m_mel$frame
 
-# need to compute log10 mel EDI to generate the data using the model,
-# which itself has log10 mel EDI as predictor
-design_matrix <- design_matrix %>% 
-  mutate(melanopic_edi_log10 = log10(calculated_MEDI)) %>% # change to true measured mel EDI!
-  mutate(photopic_lux_log10 = log10(calculated_Ev)) # change to true measured illuminance!
+observed_log_baseline <- model_frame$log_baseline
 
-# Extend it to have all participants
-design_matrix <- design_matrix %>%
-  crossing(subject = factor(1:20)) %>% 
-  rename(participant_id = subject)
+design_matrix <- read_csv(here("outputs", "design_matrix.csv"))
 
-design_matrix <- design_matrix %>% 
-  mutate(is.zero = calculated_MEDI == 0,
-         log_mel_edi = pmax(calculated_MEDI, 1) %>% log10())
+design_matrix <- readr::read_csv(
+  here::here("outputs", "design_matrix.csv"),
+  show_col_types = FALSE
+) %>%
+  dplyr::mutate(
+    participant_id = factor(participant_id),
+    lab_visit = factor(lab_visit),
 
-simulate_from_design <- function(design_df, model, n_subjects = 20, sd_scaling = 1) {
-  # Load necessary package on worker nodes if using parallel
-  if (!"MASS" %in% loadedNamespaces()) library(MASS)
-  if (!"lme4" %in% loadedNamespaces()) library(lme4)
-  
-  design_df$is.zero <- as.numeric(design_df$is.zero)
-  
-  # Extract LMM parameters
-  beta        <- fixef(model)                        # fixed effects
-  vc          <- VarCorr(model)$participant_id       # random intercept variance
-  sd_intercept <- sqrt(vc[1, 1])                     # scalar
-  sd_resid     <- sigma(model) * sd_scaling          # residual SD on log10 scale
-  
-  # Generate random intercepts for each subject
-  # subjects <- unique(design_df$participant_id)
-  all_subjects <- unique(design_df$participant_id)
-  subjects <- all_subjects[1:n_subjects] # restrict to a number of participants
-  design_df <- design_df %>% 
-    dplyr::filter(participant_id %in% subjects)
-  
-  re <- rnorm(
-    n = length(subjects),
-    mean = 0,
-    sd = sd_intercept
-  )
-  
-  re_df <- data.frame(
-    participant_id = subjects,
-    re_intercept   = re
-  )
-  
-  # Merge design matrix with random intercepts
+    melanopic_edi = MEDI,
+    rhodopic_edi = REDI,
+
+    # Must match the transformation used when fitting the EMG model.
+    # Even though there is no 0-lx condition here
+    log_illuminance = log10(pmax(illuminance, 1)),
+    log_melanopic_edi = log10(pmax(melanopic_edi, 1)),
+    log_rhodopic_edi  = log10(pmax(rhodopic_edi, 1)),
+
+    lights_on = melanopic_edi != 0
+  ) %>% 
+  # Edit it to have 20 participants only
+  dplyr::filter(as.integer(as.character(participant_id)) < 21)
+
+simulate_from_design <- function(design_df,
+                                 model,
+                                 sd_scaling = 1,
+                                 seed = NULL,
+                                 baseline_pool = NULL) {
+  if (!is.null(seed)) {
+    set.seed(seed)
+  }
+
+  if (!requireNamespace("MASS", quietly = TRUE)) {
+    stop("Package 'MASS' is required.", call. = FALSE)
+  }
+
+  if (!requireNamespace("lme4", quietly = TRUE)) {
+    stop("Package 'lme4' is required.", call. = FALSE)
+  }
+
+  if (!requireNamespace("glmmTMB", quietly = TRUE)) {
+    stop("Package 'glmmTMB' is required.", call. = FALSE)
+  }
+
+  # ---------------------------------------------------------------------------
+  # Prepare and check design matrix
+  # ---------------------------------------------------------------------------
+
   dat <- design_df %>%
-    dplyr::left_join(re_df, by = "participant_id") %>%
     dplyr::mutate(
-      # linear predictor on log scale
-      eta_log = beta[1] + beta["is.zeroTRUE"] * is.zero + beta["log_mel_edi"] * log_mel_edi + re_intercept,
-      
-      # add noise on log10 scale
-      y_log10 = rnorm(n(), mean = eta_log, sd = sd_resid),
-      
-      # bring back to original response scale
-      response_sim = 10^y_log10
+      participant_id = factor(participant_id),
+      trial = as.numeric(trial),
+      lights_on = as.logical(lights_on)
     )
   
-  return(dat)
+  # Optionally resample log_baseline for every row/trial.
+  # Because this happens inside simulate_from_design(), each simulation replicate
+  # receives a fresh set of baseline values.
+  if (!is.null(baseline_pool)) {
+    
+    baseline_pool <- baseline_pool[is.finite(baseline_pool)]
+    
+    if (length(baseline_pool) == 0) {
+      stop(
+        "`baseline_pool` contains no finite values.",
+        call. = FALSE
+      )
+    }
+    
+    dat <- dat %>%
+      dplyr::mutate(
+        log_baseline = sample(
+          baseline_pool,
+          size = dplyr::n(),
+          replace = TRUE
+        )
+      )
+  }
+
+  # Variables needed by the model RHS, including random-effect grouping variables
+  required_vars <- all.vars(stats::formula(model)[[3]])
+
+  missing_vars <- setdiff(required_vars, names(dat))
+
+  if (length(missing_vars) > 0) {
+    stop(
+      "The design matrix is missing variables required by the model: ",
+      paste(missing_vars, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  # Check for missing predictor values
+  predictor_na_counts <- dat %>%
+    dplyr::select(dplyr::all_of(required_vars)) %>%
+    dplyr::summarise(
+      dplyr::across(
+        dplyr::everything(),
+        ~ sum(is.na(.x))
+      )
+    )
+
+  if (any(predictor_na_counts > 0)) {
+    print(predictor_na_counts)
+    stop(
+      "Some model predictors contain NA values in the design matrix.",
+      call. = FALSE
+    )
+  }
+
+  # ---------------------------------------------------------------------------
+  # Fixed-effect prediction
+  # ---------------------------------------------------------------------------
+
+  # Fixed-effects-only prediction on the model scale.
+  # For a Gaussian identity-link model fitted to log_emg_raw, this is the
+  # predicted log_emg_raw value without participant-specific random effects.
+  dat$eta_fixed <- predict(
+    model,
+    newdata = dat,
+    re.form = NA,
+    type = "link",
+    allow.new.levels = TRUE
+  )
+
+  # ---------------------------------------------------------------------------
+  # Simulate random effects
+  # ---------------------------------------------------------------------------
+
+  dat$eta_random <- 0
+
+  random_terms <- lme4::findbars(stats::formula(model))
+
+  vc <- glmmTMB::VarCorr(model)$cond
+
+  for (term in random_terms) {
+
+    random_effect_formula <- term[[2]]
+    grouping_factor_expr  <- term[[3]]
+
+    grouping_vars <- all.vars(grouping_factor_expr)
+    grouping_name <- paste(grouping_vars, collapse = ":")
+
+    if (!grouping_name %in% names(vc)) {
+      warning(
+        "Random-effect grouping factor '", grouping_name,
+        "' not found in VarCorr(model). Skipping this random effect."
+      )
+      next
+    }
+
+    vc_matrix <- as.matrix(vc[[grouping_name]])
+
+    # Examples:
+    #   (1 | participant_id) becomes ~ 1
+    #   (log_melanopic_edi | participant_id) becomes ~ log_melanopic_edi
+    # Because model.matrix(~ x) includes the intercept, this correctly gives
+    # random intercept + random slope for (x | participant_id).
+    re_formula <- stats::as.formula(
+      paste("~", paste(deparse(random_effect_formula), collapse = ""))
+    )
+
+    Z <- stats::model.matrix(re_formula, data = dat)
+
+    group_id <- if (length(grouping_vars) == 1) {
+      dat[[grouping_vars]]
+    } else {
+      interaction(dat[grouping_vars], drop = TRUE)
+    }
+
+    group_id <- factor(group_id)
+
+    simulated_re <- MASS::mvrnorm(
+      n = nlevels(group_id),
+      mu = rep(0, ncol(vc_matrix)),
+      Sigma = vc_matrix
+    )
+
+    simulated_re <- as.matrix(simulated_re)
+
+    colnames(simulated_re) <- colnames(vc_matrix)
+    rownames(simulated_re) <- levels(group_id)
+
+    common_cols <- intersect(colnames(Z), colnames(simulated_re))
+
+    if (length(common_cols) == 0) {
+      warning(
+        "No matching random-effect columns for grouping factor '",
+        grouping_name,
+        "'. Skipping this random effect."
+      )
+      next
+    }
+
+    re_contribution <- rowSums(
+      Z[, common_cols, drop = FALSE] *
+        simulated_re[as.character(group_id), common_cols, drop = FALSE]
+    )
+
+    dat$eta_random <- dat$eta_random + re_contribution
+  }
+
+  # ---------------------------------------------------------------------------
+  # Simulate residual noise and back-transform response
+  # Floor is applied to the expected response before residual noise is added
+  # ---------------------------------------------------------------------------
+
+  sd_resid <- stats::sigma(model) * sd_scaling
+
+  # Fixed-effect floor at 0 lx, computed from the original data used to fit
+  # the model, not from the new simulation design.
+  model_frame <- stats::model.frame(model)
+
+  if (!"lights_on" %in% names(model_frame)) {
+    stop(
+      "Could not compute baseline floor because `lights_on` is not in the model frame.",
+      call. = FALSE
+    )
+  }
+
+  model_frame <- model_frame %>%
+    dplyr::mutate(
+      lights_on = as.logical(lights_on)
+    )
+
+  baseline_model_frame <- model_frame %>%
+    dplyr::filter(!lights_on)
+
+  if (nrow(baseline_model_frame) == 0) {
+    stop(
+      "Could not compute baseline floor because the model frame contains no lights_on == FALSE rows.",
+      call. = FALSE
+    )
+  }
+
+  baseline_floor_log10 <- mean(
+    predict(
+      model,
+      newdata = baseline_model_frame,
+      re.form = NA,
+      type = "link",
+      allow.new.levels = TRUE
+    ),
+    na.rm = TRUE
+  )
+
+  if (!is.finite(baseline_floor_log10)) {
+    stop(
+      "Could not compute a finite baseline floor from the model frame.",
+      call. = FALSE
+    )
+  }
+
+  baseline_floor_raw <- 10^baseline_floor_log10
+
+  dat <- dat %>%
+    dplyr::mutate(
+      # Expected response from fixed + random effects, before flooring
+      expected_log10_unfloored = eta_fixed + eta_random,
+  
+      # Indicator: was this row affected by the floor?
+      floored = expected_log10_unfloored < baseline_floor_log10,
+  
+      # Expected response after applying physiological floor
+      expected_log10 = pmax(
+        expected_log10_unfloored,
+        baseline_floor_log10
+      ),
+  
+      # Use the same residual-noise draw for both versions,
+      # so flooring is the only difference
+      residual_noise = stats::rnorm(
+        n = dplyr::n(),
+        mean = 0,
+        sd = sd_resid
+      ),
+  
+      simulated_log10_unfloored = expected_log10_unfloored + residual_noise,
+      simulated_log10 = expected_log10 + residual_noise,
+  
+      simulated_emg_unfloored = 10^simulated_log10_unfloored,
+      simulated_emg = 10^simulated_log10,
+  
+      baseline_floor_log10 = baseline_floor_log10,
+      baseline_floor_emg = baseline_floor_raw
+    )
+
+  dat
 }
 
-sim_dat <- simulate_from_design(design_df = design_matrix, model = m, sd_scaling = 1)
+sim_dat <- simulate_from_design(
+  design_df = design_matrix, 
+  model = m_mel, 
+  sd_scaling = 1, 
+  baseline_pool = observed_log_baseline,
+  seed = seed)
 ```
 
 ```{r}
 sim_dat_plot <- sim_dat %>% 
-  rename(illuminance = `Illuminance [lx] (CIE1931 2°)`,
-         medi = `X v,mel,D65 (MEDI) [lx]`) %>% 
   mutate(primary = as.factor(as.numeric(primary)), # Reset factor labels to 1-6 instead of 2-7
          wavelength = primary_wavelengths[primary]) %>% # add wavelength per primary 
   group_by(primary, lab_visit) %>% 
-  summarise(mean_response = mean(response_sim, na.rm = TRUE),
+  summarise(mean_response = mean(simulated_log10, na.rm = TRUE),
             # mean_response_norm  = mean_response / max(response_sim, na.rm = TRUE),
             illuminance = first(illuminance), 
-            medi = first(medi),
+            MEDI = first(MEDI),
             wavelength = first(wavelength),
             .groups = "drop")
 
@@ -264,13 +498,13 @@ plot_ee <- ggplot(sim_dat_plot, aes(x = illuminance, y = mean_response, colour =
   geom_point(alpha = 0.6) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 1) +
   # Labels next to fitted lines
-  annotate("text", x = 450, y = 315, label = "2", fontface = "bold") +
-  annotate("text", x = 540, y = 420, label = "3", fontface = "bold") +
-  annotate("text", x = 1050, y = 450, label = "4", fontface = "bold") +
-  annotate("text", x = 3300, y = 400, label = "5", fontface = "bold") +
-  annotate("text", x = 5800, y = 340, label = "6", fontface = "bold") +
-  annotate("text", x = 5000, y = 250, label = "7", fontface = "bold") +
-  scale_x_log10() +
+  annotate("text", x = 200, y = -2.2, label = "2", fontface = "bold") +
+  annotate("text", x = 500, y = -2.15, label = "3", fontface = "bold") +
+  annotate("text", x = 1000, y = -2.125, label = "4", fontface = "bold") +
+  annotate("text", x = 3000, y = -2.13, label = "5", fontface = "bold") +
+  annotate("text", x = 5000, y = -2.2, label = "6", fontface = "bold") +
+  annotate("text", x = 4000, y = -2.28, label = "7", fontface = "bold") +
+  scale_x_log10(breaks = breaks, minor_breaks = minor_breaks) +
   scale_color_continuous(palette = c("navyblue", "chartreuse3")) +
   labs(x = "Illuminance (lux)",
        y = "Predicted EMG response",
@@ -280,7 +514,7 @@ plot_ee <- ggplot(sim_dat_plot, aes(x = illuminance, y = mean_response, colour =
   plot_formatting
 plot_ee
 
-plot_medi <- ggplot(sim_dat_plot, aes(x = medi, y = mean_response, colour = wavelength, group = primary)) +
+plot_medi <- ggplot(sim_dat_plot, aes(x = MEDI, y = mean_response, colour = wavelength, group = primary)) +
   geom_point(alpha = 0.6) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 1) +
   scale_x_log10() +
@@ -299,7 +533,7 @@ plot_hypotheses
 ```
 
 ```{r}
-plot_light_metrics <- readRDS(here("outputs", "figures", "rds", "calibration_ee_medi_ratio_1.rds")) +
+plot_light_metrics <- readRDS(here("outputs", "figures", "rds", "calibration_melanopic_vs_photopic.rds")) +
   labs(y = "Illuminance (lux)")
 plot_light_metrics 
 ```

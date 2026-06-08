@@ -83,7 +83,7 @@ label_data <- data.frame(
 ```{r}
 # ---- Pilot: import + tidy ----
 pilot_spd_long <- read_spd_xlsx_long(
-  here("data", "light_source_calibration", "3_pilot_settings.xlsx")
+  here("data", "light_source_calibration", "1_raw", "3_pilot_settings_raw.xlsx")
 )
 
 # ---- Pilot: plot data ----
@@ -164,7 +164,7 @@ pilot_plot_spd_abs
 ```{r}
 # ---- Main: import + tidy ----
 main_spd_long <- read_spd_xlsx_long(
-  here("data", "light_source_calibration", "2b_target_settings_corrected.xlsx")
+  here("data", "light_source_calibration", "1_raw", "2b_target_settings_corrected_raw.xlsx")
 )
 
 # ---- Main: derive labels ----

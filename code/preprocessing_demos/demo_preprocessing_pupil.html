@@ -11,7 +11,7 @@
 
 <meta name="author" content="Lucien Bickerstaff" />
 
-<meta name="date" content="2026-02-16" />
+<meta name="date" content="2026-06-08" />
 
 <title>Demo: Pupillary data preprocessing</title>
 
@@ -352,7 +352,7 @@ display: none;
 
 <h1 class="title toc-ignore">Demo: Pupillary data preprocessing</h1>
 <h4 class="author">Lucien Bickerstaff</h4>
-<h4 class="date">2026-02-16</h4>
+<h4 class="date">2026-06-08</h4>
 
 </div>
 
@@ -376,8 +376,8 @@ pupil_data_pp &lt;- preprocess_pupil(
 <pre><code>## Removing data with confidence &lt; 0.71
 ## [1] &quot;No gaps &gt;200 ms in the data&quot;</code></pre>
 <pre><code>## 28.36 percent of data left after preprocessing</code></pre>
-<p>Now we can visualise what the data looks like aftr each preprocessing
-step</p>
+<p>Now we can visualise what the data looks like after each
+preprocessing step</p>
 <pre class="r"><code>plot_raw &lt;- plot_pupil(
   pupil_data_pp,
   which = &quot;raw&quot;
@@ -486,7 +486,7 @@ formatted_save(here(&quot;outputs&quot;, &quot;figures&quot;, &quot;preprocessin
 ## [45] xfun_0.56          tidyselect_1.2.1   rstudioapi_0.18.0  knitr_1.51        
 ## [49] farver_2.1.2       htmltools_0.5.9    labeling_0.4.3     rmarkdown_2.30    
 ## [53] compiler_4.4.0     S7_0.2.1           markdown_2.0       gridtext_0.1.5</code></pre>
-<pre><code>## Render time: 42.38351 secs</code></pre>
+<pre><code>## Render time: 41.65737 secs</code></pre>
 
 
 

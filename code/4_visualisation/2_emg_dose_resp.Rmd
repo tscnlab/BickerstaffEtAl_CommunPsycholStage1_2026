@@ -27,33 +27,36 @@ source(here("R", "plot_settings.R"))
 ```
 
 ```{r}
-emg_data <- read_csv(here("data", "emg_dose_resp_modelling", "emg_pilot_data_averages.csv"))
+# Import trial-level EMG outcomes
+emg_data <- readRDS(
+  here::here("data", "main_data", "emg_outcomes_trial.rds")
+)
 
 # Calculate number of participants for each channel
 n_data <- emg_data %>%
-  group_by(melanopic_edi, melanopic_edi_log10, channel) %>%
+  group_by(channel) %>%
   summarise(participant_count = n_distinct(participant_id)) %>%
   ungroup() %>%
   distinct() # Remove duplicates
-```
 
-```{r}
-# --- Build lux_lookup as a compact data.table ---
-# Expecting json like: light_conditions: { "1": {"melanopic_edi":..., "photopic_lux":...}, ... }
-json_raw   <- jsonlite::fromJSON(here("data", "light_conditions_lookup.json"))
-tmp        <- json_raw$light_conditions
-
-lux_lookup <- rbindlist(
-  lapply(names(tmp), function(nm) {
-    data.table(
-      condition     = as.integer(nm),
-      melanopic_edi = as.numeric(tmp[[nm]]$melanopic_edi),
-      photopic_lux  = as.numeric(tmp[[nm]]$photopic_lux)
-    )
-  }),
-  use.names = TRUE, fill = TRUE
-)
-setkey(lux_lookup, condition)
+participant_avg <- emg_data %>%
+  dplyr::group_by(
+    participant_id,
+    condition,
+    melanopic_edi,
+    illuminance,
+    channel,
+    muscle
+  ) %>%
+  dplyr::summarise(
+    mean_emg_raw = mean(emg_raw, na.rm = TRUE),
+    mean_emg_bc  = mean(emg_bc, na.rm = TRUE),
+    mean_baseline = mean(baseline_value, na.rm = TRUE),
+    n_trials = dplyr::n(),
+    n_valid_emg_raw = sum(!is.na(emg_raw)),
+    n_valid_emg_bc = sum(!is.na(emg_bc)),
+    .groups = "drop"
+  )
 ```
 
 # Plotting
@@ -62,12 +65,12 @@ We start by creating two separate plots (one for the baseline, 0 lux condition, 
 
 ```{r}
 # Create a plot for each channel
-for (chan in unique(emg_data$channel)) {
+for (chan in unique(participant_avg$channel)) {
   # Filter the data for the current channel
   chan <- as.integer(chan)
   muscle <- muscles[chan]
   
-  data_channel <- emg_data %>%
+  data_channel <- participant_avg %>%
     dplyr::filter(channel == chan)
   
   n = n_data %>%
@@ -76,13 +79,13 @@ for (chan in unique(emg_data$channel)) {
   
   # ---- Baseline (condition == 0) plot ----
 
-  baseline_data <- emg_data %>%
+  baseline_data <- participant_avg %>%
     dplyr::filter(channel == chan, condition == 0)
   
-  baseline_plot <- # ggplot(baseline_data,
-  #                          aes(x = factor(1), y = emg_response)) +
-                     ggplot(baseline_data,
-                           aes(x = melanopic_edi, y = emg_response)) +
+  baseline_plot <- ggplot(
+    baseline_data,
+    aes(x = melanopic_edi, y = mean_emg_raw)
+  ) +
   
     # Half violin for distribution
     geom_half_violin( 
@@ -101,12 +104,12 @@ for (chan in unique(emg_data$channel)) {
     # Boxplot summary
     geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white", color = "black") +
   
-    geom_hline(yintercept = 100, color = "darkred", alpha = 0.3) +
+    # geom_hline(yintercept = 100, color = "darkred", alpha = 0.3) +
   
-    coord_cartesian(
-      ylim = c(45, 2000),
-      clip = "off"
-    ) +
+    # coord_cartesian(
+    #   ylim = c(45, 2000),
+    #   clip = "off"
+    # ) +
     
     scale_x_continuous(
       breaks = 0,
@@ -123,7 +126,7 @@ for (chan in unique(emg_data$channel)) {
     labs(
       title = glue("Baseline (dark condition)\nEMG activity ({muscle})\nn={n}"),
       x = "Melanopic EDI (lux)",
-      y = "EMG signal (% from dark adaptation)"
+      y = "EMG signal (mV)"
     ) +
   
     theme_minimal() +
@@ -142,8 +145,10 @@ for (chan in unique(emg_data$channel)) {
 
   
   # Main plot
-  raincould <- ggplot(data_channel %>% dplyr::filter(condition != 0), 
-                      aes(x = melanopic_edi, y = emg_response)) +
+  raincould <- ggplot(
+    data_channel %>% dplyr::filter(condition != 0), 
+    aes(x = melanopic_edi, y = mean_emg_raw)
+  ) +
     # Half violin for distribution
     geom_half_violin(
       aes(group=melanopic_edi), 
@@ -167,9 +172,9 @@ for (chan in unique(emg_data$channel)) {
     geom_smooth(aes(group = 1), method = "lm", color = "red", se = TRUE, linewidth = 0.5) +
     
     # Horizontal reference line at 100
-    geom_hline(yintercept = 100, color = "darkred", alpha = 0.3) +
+    # geom_hline(yintercept = 100, color = "darkred", alpha = 0.3) +
     
-    coord_cartesian(ylim = c(45, 2000), 
+    coord_cartesian(#ylim = c(45, 2000), 
                     xlim = c(300, 10000),
                     clip = "off") +
     scale_x_log10(breaks = breaks, minor_breaks = minor_breaks) +
@@ -178,7 +183,7 @@ for (chan in unique(emg_data$channel)) {
     # Axis labels and theming
     labs(title = glue("EMG activity ({muscle})\nn={n}"),
          x = "Melanopic EDI (lux)",
-         y = "EMG signal (% from dark adaptation)") +
+         y = "EMG signal (mV)") +
     theme_minimal() +
     theme(legend.position = "none") +
     plot_formatting
@@ -186,6 +191,9 @@ for (chan in unique(emg_data$channel)) {
   # Save the plot
   save_rds_safe(raincould, here("outputs", "figures", "rds", glue("emg_raincloud_chan_{chan}.rds")))
 }
+
+baseline_plot
+raincould
 ```
 
 ```{r}
@@ -193,7 +201,7 @@ for (chan in unique(emg_data$channel)) {
 
 plot_emg_main <- readRDS(here("outputs", "figures", "rds", "emg_raincloud_chan_2.rds")) +
   coord_cartesian(
-    ylim = c(95, 2000), 
+    ylim = c(0.001, 0.03),
     xlim = c(300, 10000),
     clip = "off"
   ) +
@@ -210,7 +218,7 @@ plot_emg_main <- readRDS(here("outputs", "figures", "rds", "emg_raincloud_chan_2
 plot_emg_baseline <- readRDS(here("outputs", "figures", "rds", "emg_baseline_chan_2.rds")) +
   coord_cartesian(
     xlim = c(-0.6, 0.6),
-    ylim = c(95, 2000),
+    ylim = c(0.001, 0.03),
     clip = "off"
   ) +
   scale_x_continuous(
